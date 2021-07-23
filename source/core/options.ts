@@ -552,6 +552,7 @@ const getGlobalDnsCache = (): CacheableLookup => {
 };
 
 const defaultInternals: Options['_internals'] = {
+	custom: [],
 	request: undefined,
 	agent: {
 		http: undefined,
@@ -712,6 +713,7 @@ const cloneInternals = (internals: typeof defaultInternals): typeof defaultInter
 
 	const result = {
 		...internals,
+		custom: [...internals.custom],
 		context: {...internals.context},
 		cacheOptions: {...internals.cacheOptions},
 		https: {...internals.https},
@@ -768,7 +770,7 @@ export default class Options {
 	private _merging: boolean;
 	private readonly _init: OptionsInit[];
 
-	constructor(input?: string | URL | OptionsInit, options?: OptionsInit, defaults?: Options | OptionsInit) {
+	constructor(input?: string | URL | OptionsInit, options?: OptionsInit, defaults?: Options) {
 		assert.any([is.string, is.urlInstance, is.object, is.undefined], input);
 		assert.any([is.object, is.undefined], options);
 		assert.any([is.object, is.undefined], defaults);
@@ -777,10 +779,17 @@ export default class Options {
 			throw new TypeError('The defaults must be passed as the third argument');
 		}
 
-		this._internals = cloneInternals((defaults as Options)?._internals ?? defaults ?? defaultInternals);
-		this._init = [...((defaults as Options)?._init ?? [])];
+		this._internals = cloneInternals(defaults?._internals ?? defaults ?? defaultInternals);
+		this._init = [...(defaults?._init ?? [])];
 		this._merging = false;
 		this._unixOptions = undefined;
+
+		if (defaults) {
+			for (const option of defaults.custom) {
+				// @ts-expect-error FIXME
+				this[option] = defaults[option];
+			}
+		}
 
 		// This rule allows `finally` to be considered more important.
 		// Meaning no matter the error thrown in the `try` block,
@@ -855,6 +864,15 @@ export default class Options {
 		// Always merge `isStream` first
 		if ('isStream' in options) {
 			this.isStream = options.isStream!;
+		}
+
+		if ('custom' in options) {
+			this.custom = options.custom!;
+
+			for (const option of options.custom!) {
+				// @ts-expect-error FIXME
+				this[option] = undefined;
+			}
 		}
 
 		try {
@@ -2130,6 +2148,20 @@ export default class Options {
 		assert.any([is.number, is.undefined], value);
 
 		this._internals.maxHeaderSize = value;
+	}
+
+	get custom() {
+		return this._internals.custom;
+	}
+
+	set custom(value: string[]) {
+		if (this._merging) {
+			this._internals.custom.push(...value);
+		} else {
+			this._internals.custom = [...value];
+		}
+
+		this._internals.custom = [...new Set(this._internals.custom)];
 	}
 
 	toJSON() {

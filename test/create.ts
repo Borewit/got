@@ -1,3 +1,5 @@
+// @ts-nocheck FIXME
+
 import {Agent as HttpAgent, IncomingMessage, request as httpRequest, RequestOptions} from 'http';
 import {URL} from 'url';
 import test from 'ava';
@@ -374,4 +376,36 @@ test('waits for handlers to finish', withServer, async (t, server, got) => {
 
 	const {foo} = await instance('').json();
 	t.is(foo, 'bar');
+});
+
+test('custom options', withServer, async (t, server, got) => {
+	server.get('/', echoHeaders);
+
+	let counter = 0;
+
+	const instance = got.extend({
+		custom: ['foobar'],
+		foobar: 123,
+		hooks: {
+			init: [
+				options => {
+					counter += Number('foobar' in options);
+				},
+			],
+			beforeRequest: [
+				options => {
+					options.headers.foobar = options.foobar;
+				},
+			],
+		},
+		retry: {
+			limit: 0,
+		},
+	});
+
+	t.is((await instance('').json()).foobar, '123');
+	t.is((await instance('', {}).json()).foobar, '123');
+	t.is((await instance('', {foobar: 456}).json()).foobar, '456');
+
+	t.is(counter, 2);
 });
