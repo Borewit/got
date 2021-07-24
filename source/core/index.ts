@@ -2822,10 +2822,6 @@ export default class Request extends Duplex implements RequestEvents<Request> {
 	}
 
 	pipe<T extends NodeJS.WritableStream>(destination: T, options?: {end?: boolean}): T {
-		if (this[kStartedReading]) {
-			throw new Error('Failed to pipe. The response has been emitted already.');
-		}
-
 		if (destination instanceof ServerResponse) {
 			this[kServerResponsesPiped].add(destination);
 		}
